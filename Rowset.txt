@@ -1,0 +1,115 @@
+class Rowset extends Rowset
+   property date earliestChangedEffectiveDate get;
+   property date latestChangedEffectiveDate get;
+   method Rowset(&getOrCreate As string, &recNameOrRowset As any);
+private
+   method getRowset(&recNameOrRowset As any) Returns Rowset;
+   method createRowset(&recNameOrRowset As any) Returns Rowset;
+   method findEarliestChangedEffectiveDate(&Rowset_ As Rowset, &earliestChangeDate_ As date) Returns date;
+   method findLatestChangedEffectiveDate(&Rowset_ As Rowset, &latestChangeDate_ As date) Returns date;
+   method effectiveDatedRowIsChanged(&Row As Row) Returns boolean;
+end-class;
+
+get earliestChangedEffectiveDate
+   /+ Returns Date +/
+   Return %This.findEarliestChangedEffectiveDate(%This, %This.GetRow(%This.RowCount).GetRecord(1).EFFDT.Value)
+end-get;
+
+get latestChangedEffectiveDate
+   /+ Returns Date +/
+   Return %This.findLatestChangedEffectiveDate(%This, %This.GetRow(1).GetRecord(1).EFFDT.Value)
+end-get;
+
+method Rowset
+   /+ &getOrCreate as String, +/
+   /+ &recNameOrRowset as Any +/
+   Evaluate Lower(&getOrCreate)
+   When "get"
+      %Super = %This.getRowset(&recNameOrRowset)
+   When "create"
+      %Super = %This.createRowset(&recNameOrRowset)
+   End-Evaluate;
+end-method;
+
+
+/* private */
+
+method getRowset
+   /+ &recNameOrRowset as Any +/
+   /+ Returns Rowset +/
+   try
+      Return GetRowset(@("scroll." | &recNameOrRowset)) /* string */
+   catch Exception &gE
+      try
+         Return GetRowset(@("scroll." | &recNameOrRowset.name)) /* Record.Name */
+      catch Exception &gEE
+         Return &recNameOrRowset /* Rowset */
+      end-try
+   end-try
+end-method;
+
+method createRowset
+   /+ &recNameOrRowset as Any +/
+   /+ Returns Rowset +/
+   try
+      Return CreateRowset(@("Record." | &recNameOrRowset)) /* string */
+   catch Exception &cE
+      try
+         Return CreateRowset(&recNameOrRowset.Name) /* Record.Name */
+      catch Exception &cEE
+         Return CreateRowset(&recNameOrRowset) /* Rowset */
+      end-try
+   end-try
+end-method;
+
+/* Recursive, heirarchical search. */
+method findEarliestChangedEffectiveDate
+   /+ &Rowset_ as Rowset, +/
+   /+ &earliestChangeDate_ as Date +/
+   /+ Returns Date +/
+   Local integer &i, &c;
+   For &i = 1 To &Rowset_.RowCount
+      If %This.effectiveDatedRowIsChanged(&Rowset_(&i)) And
+            &Rowset_(&i).GetRecord(1).EFFDT.Value < &earliestChangeDate_ Then
+         Return &Rowset_(&i).GetRecord(1).EFFDT.Value;
+      End-If;
+      For &c = 1 To &Rowset_(&i).ChildCount
+         &earliestChangeDate_ = %This.findEarliestChangedEffectiveDate(&Rowset_(&i).GetRowset(&c), &earliestChangeDate_)
+      End-For;
+   End-For;
+   Return &earliestChangeDate_
+end-method;
+
+/* Recursive, heirarchical search. */
+method findLatestChangedEffectiveDate
+   /+ &Rowset_ as Rowset, +/
+   /+ &latestChangeDate_ as Date +/
+   /+ Returns Date +/
+   Local integer &i, &c;
+   For &i = &Rowset_.RowCount To 1 Step - 1
+      If %This.effectiveDatedRowIsChanged(&Rowset_(&i)) And
+            &Rowset_(&i).GetRecord(1).EFFDT.Value > &latestChangeDate_ Then
+         Return &Rowset_(&i).GetRecord(1).EFFDT.Value;
+      End-If;
+      For &c = 1 To &Rowset_(&i).ChildCount
+         &latestChangeDate_ = %This.findLatestChangedEffectiveDate(&Rowset_(&i).GetRowset(&c), &latestChangeDate_)
+      End-For;
+   End-For;
+   Return &latestChangeDate_
+end-method;
+
+method effectiveDatedRowIsChanged
+   /+ &Row as Row +/
+   /+ Returns Boolean +/
+   try
+      If None(&Row.GetRecord(1).EFFDT.Value) Then
+         Return False
+      End-If;
+   catch Exception &E /* Record does not have EFFDT field. */
+      Return False
+   end-try;
+   Return (&Row.IsChanged Or
+      &Row.IsNew Or
+      &Row.IsDeleted)
+end-method;
+

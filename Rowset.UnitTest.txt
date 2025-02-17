@@ -1,0 +1,93 @@
+import XX_UNIT_TEST:Base;
+import XX_UTILITIES:Extensions:Rowset;
+
+class Rowset extends XX_UNIT_TEST:Base
+   method Rowset();
+   method run();
+private
+   instance XX_UTILITIES:Extensions:Rowset &_JobData;
+   method test_instantiatesAndPopulates();
+   method test_earliestChangedEffectiveDate();
+   method test_latestChangedEffectiveDate();
+   method createJobDataMockRowset() Returns Rowset;
+   method populateTestData(&JobData As Rowset);
+end-class;
+
+method Rowset
+   %Super = create XX_UNIT_TEST:Base(String(%This));
+end-method;
+
+method run
+   /+ Extends/implements TTS_UNITTEST:TestBase.Run +/
+   %This.test_instantiatesAndPopulates();
+   %This.test_earliestChangedEffectiveDate();
+   %This.test_latestChangedEffectiveDate();
+   %This.passClass();
+end-method;
+
+
+/* private */
+
+method test_instantiatesAndPopulates
+   &_JobData = create XX_UTILITIES:Extensions:Rowset("create", %This.createJobDataMockRowset());
+   %This.populateTestData(&_JobData);
+   %This.Msg("&_JobData.RowCount = " | &_JobData.RowCount);
+   %This.description = "Extended Rowset instantiates and populates.";
+   %This.expectedResult = "&_JobData.rowCount > 0 = True";
+   %This.actualResult = "&_JobData.rowCount > 0 = " | (&_JobData.RowCount > 0);
+   %This.test();
+end-method;
+
+method test_earliestChangedEffectiveDate
+   &_JobData = create XX_UTILITIES:Extensions:Rowset("create", %This.createJobDataMockRowset());
+   %This.populateTestData(&_JobData);
+   Local Row &TestRow = &_JobData.GetRow(103); /* earliest updated row */
+   Local Row &DummyTestRow = &_JobData.GetRow(104); /* also update a later row */
+   &TestRow.GetRowset(1).GetRow(1).GetRecord(1).LOCATION.Value = "X";
+   &DummyTestRow.GetRowset(1).GetRow(1).GetRecord(1).LOCATION.Value = "X";
+   %This.Msg("");
+   %This.Msg("test_earliestChangedEffectiveDate");
+   %This.Msg("Test Row = " | &TestRow.JOB.EFFDT.Value);
+   %This.Msg("Dummy Row = " | &DummyTestRow.JOB.EFFDT.Value);
+   %This.description = "Test the earliest changed effective date.";
+   %This.expectedResult = &TestRow.JOB.EFFDT.Value;
+   %This.actualResult = &_JobData.earliestChangedEffectiveDate;
+   %This.test();
+end-method;
+
+method test_latestChangedEffectiveDate
+   &_JobData = create XX_UTILITIES:Extensions:Rowset("create", %This.createJobDataMockRowset());
+   %This.populateTestData(&_JobData);
+   Local Row &TestRow = &_JobData.GetRow(100); /* latest updated row */
+   Local Row &DummyTestRow = &_JobData.GetRow(50); /* also update an earlier row */
+   &TestRow.GetRowset(1).GetRow(1).GetRecord(1).LOCATION.Value = "X";
+   &DummyTestRow.GetRowset(1).GetRow(1).GetRecord(1).LOCATION.Value = "X";
+   %This.Msg("");
+   %This.Msg("test_latestChangedEffectiveDate");
+   %This.Msg("Test Row = " | &TestRow.JOB.EFFDT.Value);
+   %This.Msg("Dummy Row = " | &DummyTestRow.JOB.EFFDT.Value);
+   %This.description = "Test the latest changed effective date.";
+   %This.expectedResult = &TestRow.JOB.EFFDT.Value;
+   %This.actualResult = &_JobData.latestChangedEffectiveDate;
+   %This.test();
+end-method;
+
+method createJobDataMockRowset
+   /+ Returns Rowset +/
+   /* JOB
+       |- ACU_JOB_SUBST
+       |- COMPENSATION  */
+   Return CreateRowset(Record.JOB, CreateRowset(Record.ACU_JOB_SUBST, Field.EMPLID, Record.COMPENSATION))
+end-method;
+
+method populateTestData
+   /+ &JobData as Rowset +/
+   &JobData.Fill("WHERE EMPLID = '00000123'");
+   Local integer &i, &c;
+   For &i = 1 To &JobData.RowCount
+      For &c = 1 To &JobData(&i).ChildCount
+         &JobData(&i).GetRowset(&c).Fill("WHERE EMPLID = :1 AND EMPL_RCD = :2 AND EFFDT = :3 AND EFFSEQ = :4", &JobData(&i).JOB.EMPLID.Value, &JobData(&i).JOB.EMPL_RCD.Value, &JobData(&i).JOB.EFFDT.Value, &JobData(&i).JOB.EFFSEQ.Value);
+      End-For;
+   End-For
+end-method;
+

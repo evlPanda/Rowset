@@ -1,4 +1,4 @@
-Extend the Rowset class to add custom methods.
+**Extend the Rowset class to add custom methods.**
 
 *.findEarliestChangedEffectiveDate()*
 
